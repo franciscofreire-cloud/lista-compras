@@ -127,12 +127,16 @@ const App: React.FC = () => {
         setCurrentListId(currentList?.id || null);
 
         setState({
-          items: currentList?.items.map((i: any) => ({
+          items: (currentList?.items.map((i: any) => ({
             id: i.id,
             name: i.name,
             quantity: i.quantity,
             unitPrice: i.unit_price
-          })) || [],
+          })) || []).sort((a: any, b: any) => {
+            if (a.unitPrice > 0 && b.unitPrice === 0) return 1;
+            if (a.unitPrice === 0 && b.unitPrice > 0) return -1;
+            return 0;
+          }),
           balance: currentList?.balance_at_time || 0,
           history: historyLists.map((l: any) => ({
             id: l.id,
@@ -233,16 +237,27 @@ const App: React.FC = () => {
   };
 
   const handleAddItem = async (data: Omit<ShoppingItem, 'id'>) => {
-    const newItem: ShoppingItem = { ...data, id: generateId() }; // Temporary ID for UI
-    const newState = { ...state, items: [...state.items, newItem] };
+    const newItem: ShoppingItem = { ...data, id: generateId() };
+    const unsortedItems = [...state.items, newItem];
+    const sortedItems = unsortedItems.sort((a, b) => {
+      if (a.unitPrice > 0 && b.unitPrice === 0) return 1;
+      if (a.unitPrice === 0 && b.unitPrice > 0) return -1;
+      return 0;
+    });
+    const newState = { ...state, items: sortedItems };
     setState(newState);
     await syncCurrentListItems(newState.items);
   };
 
   const handleUpdateItem = async (data: Omit<ShoppingItem, 'id'>) => {
     if (!editingItem) return;
-    const newItems = state.items.map(item => item.id === editingItem.id ? { ...data, id: item.id } : item);
-    const newState = { ...state, items: newItems };
+    const updatedItems = state.items.map(item => item.id === editingItem.id ? { ...data, id: item.id } : item);
+    const sortedItems = updatedItems.sort((a, b) => {
+      if (a.unitPrice > 0 && b.unitPrice === 0) return 1;
+      if (a.unitPrice === 0 && b.unitPrice > 0) return -1;
+      return 0;
+    });
+    const newState = { ...state, items: sortedItems };
     setState(newState);
     setEditingItem(null);
     await syncCurrentListItems(newState.items);
@@ -538,10 +553,13 @@ const App: React.FC = () => {
               {state.items.map((item) => (
                 <div
                   key={item.id}
-                  className={`rounded-2xl p-4 shadow-sm border flex items-center justify-between group transition-all duration-300 ${state.theme === 'dark' ? 'bg-gray-800 border-gray-700 hover:border-green-800' : 'bg-white border-gray-100 hover:border-green-200'}`}
+                  className={`rounded-2xl p-4 shadow-sm border flex items-center justify-between group transition-all duration-300 ${item.unitPrice > 0
+                    ? (state.theme === 'dark' ? 'bg-green-900/10 border-green-900/40 opacity-80' : 'bg-green-50/50 border-green-100 opacity-80')
+                    : (state.theme === 'dark' ? 'bg-gray-800 border-gray-700 hover:border-green-800' : 'bg-white border-gray-100 hover:border-green-200')
+                    }`}
                 >
                   <div className="flex-1 mr-4">
-                    <h3 className={`font-bold text-lg leading-tight mb-1 ${state.theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{item.name}</h3>
+                    <h3 className={`font-bold text-lg leading-tight mb-1 ${item.unitPrice > 0 ? 'line-through text-gray-400' : (state.theme === 'dark' ? 'text-gray-100' : 'text-gray-900')}`}>{item.name}</h3>
                     <div className="flex items-center gap-2 text-sm font-semibold">
                       <span className={`px-2 py-0.5 rounded-md ${state.theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>{item.quantity}x</span>
                       <span className="text-gray-500">{formatCurrency(item.unitPrice)}</span>
@@ -905,8 +923,8 @@ const App: React.FC = () => {
                   }
                 }}
                 className={`flex-1 py-4 font-bold text-white rounded-2xl shadow-lg transition-all active:scale-95 ${dialogConfig.type === 'confirm' && (dialogConfig.title.includes('Excluir') || dialogConfig.title.includes('Sair'))
-                    ? 'bg-red-500 shadow-red-200/50'
-                    : 'bg-green-500 shadow-green-200/50'
+                  ? 'bg-red-500 shadow-red-200/50'
+                  : 'bg-green-500 shadow-green-200/50'
                   }`}
               >
                 {dialogConfig.confirmLabel}
